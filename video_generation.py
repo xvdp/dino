@@ -147,10 +147,14 @@ class VideoGenerator:
         out.release()
         print("Done")
 
+    def _get_images(self, inp: str):
+        _get_ext = lambda x: os.path.splitext(x)[-1].lower()
+        _img_ext = (".png", ".jpg", ".jpeg")
+        return sorted([f.path for f in os.scandir(inp) if _get_ext(f.name) in _img_ext])
+
     def _inference(self, inp: str, out: str):
         print(f"Generating attention images to {out}")
-
-        for img_path in tqdm(sorted(glob.glob(os.path.join(inp, "*.jpg")))):
+        for img_path in tqdm(self._get_images(inp)):
             with open(img_path, "rb") as f:
                 img = Image.open(f)
                 img = img.convert("RGB")
