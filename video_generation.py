@@ -21,21 +21,19 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-import torchvision
+
 from torchvision import transforms as pth_transforms
 import numpy as np
 from PIL import Image
 
-import utils
 import vision_transformer as vits
 
-
+# pylint: disable=no-member
 FOURCC = {
     "mp4": cv2.VideoWriter_fourcc(*"MP4V"),
     "avi": cv2.VideoWriter_fourcc(*"XVID"),
 }
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
 
 class VideoGenerator:
     def __init__(self, args):
@@ -152,7 +150,7 @@ class VideoGenerator:
         _img_ext = (".png", ".jpg", ".jpeg")
         return sorted([f.path for f in os.scandir(inp) if _get_ext(f.name) in _img_ext])
 
-    def _inference(self, inp: str, out: str):
+    def _inference(self, inp: str, out: str, thresholded: bool=True):
         print(f"Generating attention images to {out}")
         for img_path in tqdm(self._get_images(inp)):
             with open(img_path, "rb") as f:
@@ -217,17 +215,19 @@ class VideoGenerator:
                 .cpu()
                 .numpy()
             )
-
-            attentions = attentions.reshape(nh, w_featmap, h_featmap)
-            attentions = (
-                nn.functional.interpolate(
-                    attentions.unsqueeze(0),
-                    scale_factor=self.args.patch_size,
-                    mode="nearest",
-                )[0]
-                .cpu()
-                .numpy()
-            )
+            if thresholded:
+                attentions = th_attn
+            else:
+                attentions = attentions.reshape(nh, w_featmap, h_featmap)
+                attentions = (
+                    nn.functional.interpolate(
+                        attentions.unsqueeze(0),
+                        scale_factor=self.args.patch_size,
+                        mode="nearest",
+                    )[0]
+                    .cpu()
+                    .numpy()
+                )
 
             # save attentions heatmaps
             fname = os.path.join(out, "attn-" + os.path.basename(img_path))
