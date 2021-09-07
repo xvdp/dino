@@ -194,10 +194,12 @@ if __name__ == '__main__':
             th_attn[head] = th_attn[head][idx2[head]]
         th_attn = th_attn.reshape(nh, w_featmap, h_featmap).float()
         # interpolate
-        th_attn = nn.functional.interpolate(th_attn.unsqueeze(0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
+        th_attn = nn.functional.interpolate(th_attn.unsqueeze(0), scale_factor=args.patch_size, mode="nearest",
+                                            recompute_scale_factor=False)[0].cpu().numpy()
 
     attentions = attentions.reshape(nh, w_featmap, h_featmap)
-    attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=args.patch_size, mode="nearest")[0].cpu().numpy()
+    attentions = nn.functional.interpolate(attentions.unsqueeze(0), scale_factor=args.patch_size, mode="nearest", 
+                                           recompute_scale_factor=False)[0].cpu().numpy()
 
     # save attentions heatmaps
     os.makedirs(args.output_dir, exist_ok=True)

@@ -798,7 +798,8 @@ def multi_scale(samples, model):
         if s == 1:
             inp = samples.clone()
         else:
-            inp = nn.functional.interpolate(samples, scale_factor=s, mode='bilinear', align_corners=False)
+            inp = nn.functional.interpolate(samples, scale_factor=s, mode='bilinear', align_corners=False,
+                                            recompute_scale_factor=False)
         feats = model(inp).clone()
         if v is None:
             v = feats

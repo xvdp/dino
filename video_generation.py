@@ -209,6 +209,7 @@ class VideoGenerator:
                     th_attn.unsqueeze(0),
                     scale_factor=self.args.patch_size,
                     mode="nearest",
+                    recompute_scale_factor=False,
                 )[0]
                 .cpu()
                 .numpy()
@@ -220,6 +221,7 @@ class VideoGenerator:
                     attentions.unsqueeze(0),
                     scale_factor=self.args.patch_size,
                     mode="nearest",
+                    recompute_scale_factor=False,
                 )[0]
                 .cpu()
                 .numpy()
