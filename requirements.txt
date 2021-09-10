@@ -1,0 +1,5 @@
+open-cv
+submitit
+numpy
+pillow
+pytorch >= 1.7.1

@@ -4,9 +4,11 @@ from vidi @ git+https://github.com/xvdp/vidi
 """
 import platform
 import subprocess as sp
+import warnings
 import os
 import os.path as osp
 import json
+from numpy.core.fromnumeric import size
 import psutil
 import numpy as np
 
@@ -24,32 +26,54 @@ class FFcap:
 
         Args
             name        name of output video
-            size        tuple (height, width) [480, 640]
-                # since cap is intended to stream  H,W,C image format, arugment is flipped visavis ffmpeg
-            fps         int, float [30]
+            height      int 480
+            width       int 640
+            rate        int, float [30] framerate
             increment   bool [True], early closure does not corrupt file
             overwrite   bool [True],  overwrite file if found
 
+            pix_fmt     str ["rgb24"], | # TODO write something other than rgb24  yuv420p
+            vcodec="rawvideo"   # TODO write something other than rawvideo / "libx264" fails on incremental write
+            channels=3,         # TODO derive channels from pix_fmt
+            # TODO Maybe instead:- translate after recording raw
 
         Example:
-            with vidi.FFcap("myvid.mp4", pix_fmt='rgb24, fps=29.97, size=(480,640), overwrite=True, debug=True, src_type='stdin') as F:
+            with vidi.FFcap("myvid.mp4", pix_fmt='yuv420p, fps=29.97, size=(480,640), overwrite=True') as F:
                 F.add_frame(ndarray)
-    """
-    def __init__(self, name='vid.avi', size=(480, 640), fps=30, increment=True, overwrite=True,
-                 pix_fmt="rgb24"):
 
+    """
+    def __init__(self, name='vid.avi', height=480, width=640, rate=30, increment=True, overwrite=True,
+                 pix_fmt="rgb24", vcodec="rawvideo", channels=3, **kwargs):
+        #yuv420p
         self.name = name
 
         # options
-        self.size = (size, size) if isinstance(size, int) else tuple(size)
-        assert len(self.size) == 2, "size must be a (width, height) tuple, got <%s> len %d"%(str(type(self.size)), len(self.size))
-        self.fps = fps
+        self.width = width
+        self.height = height
+
+        if "size" in kwargs:
+            size = kwargs["size"]
+            warnings.warn("'size' arg deprecated, use height=, width=", DeprecationWarning)
+            if isinstance(size, int):
+                self.width = size
+                self.height = size
+            else:
+                self.height = size[0]
+                self.width = size[1]
+        if "fps" in kwargs:
+            warnings.warn("'fps' arg deprecated, use rate=", DeprecationWarning)
+
+
+        self.fps = rate
 
         self.increment = increment
         self.overwrite = overwrite
         self.pix_fmt = pix_fmt
-        self._channels = 3 if pix_fmt == "rgb24" else 1
-        self.shape = self.size + (self._channels,)
+        self.vcodec = vcodec
+
+        # channels and pix format are tied in, 
+        self.channels = channels
+        self.shape = (self.height, self.width, self.channels)
         self.src_type = "stdin"
 
         self.audio = False
@@ -95,13 +119,14 @@ class FFcap:
         #vlc unsupported codec 28 or profile 244
         # source video chroma type not supported
 
-        self._cmd += ['-f', 'rawvideo']
-        self._cmd += ['-vcodec', 'rawvideo']
+        # if self.vcodec == "rawvideo":
+        self._cmd += ['-f', self.vcodec]
+        self._cmd += ['-vcodec', self.vcodec]
         # else:
         #     self.increment = False
         #     self._cmd += ['-vcodec', 'libx264']
 
-        self._cmd += ['-s', '%dx%d'%(self.size[1], self.size[0])]
+        self._cmd += ['-s', '%dx%d'%(self.width, self.height)]
         self._cmd += ['-pix_fmt', self.pix_fmt]
 
         # frames per second in resulting video
@@ -130,6 +155,7 @@ class FFcap:
         """
         _msg = "incorrect frame size <%s>; requires: <%s>"
         assert frame.ndim in (3,4) and frame.shape[-3:] == self.shape, _msg%(str(frame.shape), str(self.shape))
+        assert frame.dtype == np.uint8, f"dtype supported np.uint8 found '{frame.dtype}'"
         if frame.ndim == 4:
             for _frame in frame:
                 self.add_frame(_frame)
@@ -164,6 +190,7 @@ class FF:
             self.get_video_stats()
 
     def _if_win(self):
+        """ have not tested windows in a while, should work"""
         if platform.system() == 'Windows':
             self.ffplay = 'ffplay.exe'
             self.ffmpeg = 'ffmpeg.exe'
@@ -510,6 +537,8 @@ class FF:
         TODO: generate intermediate video with keyframes then cut
         ffmpeg -i a.mp4 -force_key_frames 00:00:09,00:00:12 out.mp4
 
+        # TODO copy codecs.
+        <> -vcodec copy -acodec copy <>
         """
         cmd = self._export(start=start, nb_frames=nb_frames, scale=scale, step=step, stream=stream, **kwargs)
 
