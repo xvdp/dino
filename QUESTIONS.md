@@ -72,7 +72,7 @@ On the corrupted film, the human is not highlit, while artifacts are included th
 </details>
 
 <details>
-    <summary> Excells separating subjects from natural textures. <br>
+    <summary> Excells separating subjects from natural textures, even when those are sharp. Straight, even thickness lines are attract generally simlar magnitude of attention. <br>
      <img width="5%" src=".github/subjects_nature.jpg">
      <img width="5%" src=".github/death-toll-from-floods-in-south-asia-rises-to-more-than-100_img-2_attn.jpg">
      <img width="5%" src=".github/bourse_europeene.jpg">
