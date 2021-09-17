@@ -5,8 +5,24 @@ Extracting single image inference to see what this sees.
 2. Each model is a Vision Transformer[https://arxiv.org/abs/2010.11929]
     with an added positional embedding mechanism for self attention
 
+>>> d = InferDino(arch="vit_base")
+    Peak GPU Used by model 382 MB
+    Created model 'vit_base' with patch_size [8], num params 85,807,872
+>>> d.run(file_attn.jpg', as size (3, 1000, 833)
+    Attentions: shape torch.Size([1, 12, 13001, 13001])
+    peak GPU Use  16136 MB
+
+>>> d = InferDino(arch="vit_small")
+    Peak GPU Used by model 90 MB
+    Created model 'vit_small' with patch_size [8], num params 21,670,272
+>>> d.run(file_attn.jpg', as size (3, 1000, 833)
+    Attentions: shape torch.Size([1, 6, 13001, 13001])
+    peak GPU Use  7990 MB
+
+
 """
 from typing import Union, Any
+import logging
 import os
 import os.path as osp
 import numpy as np
@@ -25,22 +41,50 @@ DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cp
 
 norm = lambda x: (x-x.min())/(x.max()-x.min())
 
-def show(x: np.ndarray, width: int=10) -> None:
-    
+def show(x: Union[str, np.ndarray, torch.Tensor], width: int=10) -> None:
+    if isinstance(x, str):
+        x = np.asarray(Image.open(str).convert("RGB"))
+    elif isinstance(x, torch.Tensor):
+        x = x.cpu().clone().detach().numpy()
+        if x.min() < 0:
+            x = norm(x)
     height = width * x.shape[0]/x.shape[1]
     plt.figure(figsize=(width, height))
     plt.imshow(x)
     plt.show()
 
+
+def get_logger(level=logging.INFO):
+    logging.basicConfig(format="%(message)s", level=level)
+def switch_level(level):
+    logging.getLogger().setLevel(level)
+
 class InferDino:
-    """light wrapper over Dino inference"""
-    def __init__(self, patch_size: int=8, **kwargs):
+    """light wrapper over Dino inference
+    Examples:
+    >>> import InferDino, show
+    >>> self = InferDino()
+
+    # process batch of images
+    >>> self.batch(<from_folder>, <to_folder>)
+
+    # process single image
+    >>> self.run(<image_name>)
+    >>> show(self.lump())
+
+    # process features
+
+    """
+    def __init__(self, patch_size: int=8, loglevel=20, arch="vit_small", **kwargs):
+        get_logger(loglevel)
+                
         self.patch_size = patch_size
-        self.model = load_model(patch_size=patch_size, **kwargs)
+        self.model = load_model(patch_size=patch_size, arch=arch, **kwargs)
 
         self.image = None
         self.attn = None
         self.th_attn = None
+
 
     def __exit__(self, exc_type, exc_value, traceback):
         """ cleanup cuda objects
@@ -61,11 +105,25 @@ class InferDino:
             resize=kwargs["resize"] if "resize" in kwargs else None
             crop=kwargs["crop"] if "crop" in kwargs else None
             tensor, self.image = load_image(image, resize=resize, maxsize=1000, crop=crop)
+            logging.info(f"Loaded image '{osp.basename(image)}', as size {tuple(tensor.shape)}")
             self.attn, self.th_attn, height, width = infer_single(self.model, tensor, patch_size=patch_size, **kwargs)
             self.image = self.image[:height, :width,...]
 
         else:
             raise NotImplementedError
+
+    def get_features(self, image:str, **kwargs) -> None:
+
+        patch_size = self.patch_size if "patch_size" not in kwargs else kwargs["patch_size"]
+        resize=kwargs["resize"] if "resize" in kwargs else None
+        crop=kwargs["crop"] if "crop" in kwargs else None
+        tensor, self.image = load_image(image, resize=resize, maxsize=1000, crop=crop)
+        if tensor.ndim == 3:
+            tensor = tensor.view(1, *tensor.shape)
+        tensor = tensor.to(device=DEVICE)
+
+        feats = self.model.get_intermediate_layers(tensor, n=1)[0].clone()
+        return feats
 
     def lump(self, mode: str="concat", cmap: str="inferno", save: str=None) -> np.ndarray:
         """ stacks or masks images and output
@@ -139,20 +197,25 @@ def load_model(arch: str="vit_small", patch_size: int=8, pretrained_weights: str
     model.eval()
     model.to(DEVICE)
 
+    _peak_mem=torch.cuda.memory_stats(device=None)["reserved_bytes.all.peak"] >> 20
+
+    _params = sum([p.numel() for p in model.parameters()])
+    logging.info(f"Created model '{arch}' with patch_size [{patch_size}], num params {_params:,}, peak GPU{_peak_mem} MB")
+
     if osp.isfile(pretrained_weights):
         state_dict = torch.load(pretrained_weights, map_location="cpu")
         if checkpoint_key is not None and checkpoint_key in state_dict:
-            print( f"Take key {checkpoint_key} in provided checkpoint dict")
+            logging.info( f"Take key {checkpoint_key} in provided checkpoint dict")
             state_dict = state_dict[checkpoint_key]
 
         state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         # remove `backbone.` prefix induced by multicrop wrapper
         state_dict = {k.replace("backbone.", ""): v for k, v in state_dict.items()}
         msg = model.load_state_dict(state_dict, strict=False)
-        print(f"Pretrained weights found at {pretrained_weights} and loaded with msg: {msg}")
+        logging.info(f"Pretrained weights found at {pretrained_weights} and loaded with msg: {msg}")
 
     else:
-        print("Please use the `pretrained_weights` argument to indicate checkpoint path.")
+        logging.info("Please use the `pretrained_weights` argument to indicate checkpoint path.")
         url = None
         if arch == "vit_small" and patch_size == 16:
             url = "dino_deitsmall16_pretrain/dino_deitsmall16_pretrain.pth"
@@ -164,12 +227,12 @@ def load_model(arch: str="vit_small", patch_size: int=8, pretrained_weights: str
         elif arch == "vit_base" and patch_size == 8:
             url = "dino_vitbase8_pretrain/dino_vitbase8_pretrain.pth"
         if url is not None:
-            print("No pretrained weights provided, load reference pretrained DINO weights.")
+            logging.info("No pretrained weights provided, load reference pretrained DINO weights.")
             url = f"https://dl.fbaipublicfiles.com/dino/{url}"
             state_dict = torch.hub.load_state_dict_from_url(url=url)
             model.load_state_dict(state_dict, strict=True)
         else:
-            print("No reference weights available for this model => Use random weights.")
+            logging.info("No reference weights available for this model => Use random weights.")
     return model
 
 def get_augment(resize: Union[int, tuple, list]=None)-> transforms.Compose:
@@ -181,7 +244,8 @@ def get_augment(resize: Union[int, tuple, list]=None)-> transforms.Compose:
 
     return transforms.Compose(out)
 
-def load_image(path: str, resize=None, maxsize=1000, crop=None) -> tuple:
+def load_image(path: str, resize: Union[int, tuple, list, np.ndarray]=None, maxsize: int=1000,
+               crop: Union[list, tuple, np.ndarray]=None) -> tuple:
     """
     Args
         path    (str) image path
@@ -189,12 +253,11 @@ def load_image(path: str, resize=None, maxsize=1000, crop=None) -> tuple:
         maxsize (int [1000]), failsafe resize
         crop    (tuple (y_0, y_1, x_0, x_1))
         # crop uses ndarray order, not ffmpeg, not PIL
- 
     """
     assert osp.isfile(path)
     img = Image.open(path).convert("RGB")
     if crop is not None and len(crop) == 4:
-        # PIL  crop left, upper, right, lower 
+        # PIL  crop left, upper, right, lower
         img = img.crop((crop[2], crop[0], crop[3], crop[1]))
 
     size = np.asarray(img.size)[::-1]
@@ -207,6 +270,7 @@ def load_image(path: str, resize=None, maxsize=1000, crop=None) -> tuple:
         img = img.resize(resize[::-1])
     return get_augment(resize=resize)(img), np.asarray(img)
 
+@torch.no_grad()
 def infer_single(model: nn.Module, img: Union[str, np.ndarray], patch_size: int=8, threshold: float=0.6, **kwargs) -> tuple:
     """ returns attn, th_attn, width, height
             th_attn:    0.6 mass of each head
@@ -222,9 +286,10 @@ def infer_single(model: nn.Module, img: Union[str, np.ndarray], patch_size: int=
         crop=kwargs["crop"] if "crop" in kwargs else None
         img = load_image(img, resize=resize, crop=crop)
 
-    w1, h1 = (img.shape[1] - img.shape[1] % patch_size,
-            img.shape[2] - img.shape[2] % patch_size,
-    )
+    if logging.getLogger().level == logging.DEBUG:
+        w1, h1 = (img.shape[1] - img.shape[1] % patch_size,
+                img.shape[2] - img.shape[2] % patch_size, )
+
     _size = np.asarray(img.shape[1:3])
     w, h = (_size - np.mod(_size, patch_size)).tolist()
 
@@ -232,18 +297,18 @@ def infer_single(model: nn.Module, img: Union[str, np.ndarray], patch_size: int=
 
     w_featmap, h_featmap = (np.asarray(img.shape[-2:]) // patch_size).tolist()
 
-    w_featmap1 = img.shape[-2] // patch_size
-    h_featmap1 = img.shape[-1] // patch_size
-
-    assert(w == w1)
-    assert(h == h1)
-    assert(w_featmap == w_featmap1)
-    assert(h_featmap == h_featmap1)
+    if logging.getLogger().level == logging.DEBUG:
+        w_featmap1 = img.shape[-2] // patch_size
+        h_featmap1 = img.shape[-1] // patch_size
+        assert(w == w1)
+        assert(h == h1)
+        assert(w_featmap == w_featmap1)
+        assert(h_featmap == h_featmap1)
 
     attentions = model.get_last_selfattention(img.to(DEVICE))
 
     nh = attentions.shape[1]  # number of heads
-    print("attentions:", attentions.shape)
+    logging.info(f"Attentions: shape {attentions.shape}")
 
     # we keep only the output patch attention
     attentions = attentions[0, :, 0, 1:].reshape(nh, -1)
@@ -262,6 +327,9 @@ def infer_single(model: nn.Module, img: Union[str, np.ndarray], patch_size: int=
 
     attentions = attentions.reshape(nh, w_featmap, h_featmap)
     attentions = interp(attentions, patch_size, "nearest")
+
+    _peak_mem = torch.cuda.memory_stats(device=None)["reserved_bytes.all.peak"] >> 20
+    logging.info(f"peak GPU Use  {_peak_mem} MB")
 
     return attentions, th_attn, w, h
 

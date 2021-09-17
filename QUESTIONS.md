@@ -22,8 +22,9 @@ Questions on looking at this work:
     <img width="5%" src=".github/bangladesh_factory_attn.jpg"/> </summary>
 
   <div align="center">
-<td> <img width="50%" src=".github/bangladesh_factory_attn.jpg"/> </td>
-[Image Source]('https://i.guim.co.uk/img/media/5ef7400158bf88db31347de8e6bb023d5a443f13/0_230_5649_3390/master/5649.jpg?width=1920&quality=85&auto=format&fit=max&s=1ab893b235820659589fa2c786e4d5f6')
+<td> <img width="50%" src=".github/bangladesh_factory_attn.jpg"/> 
+</td>
+<a href='https://i.guim.co.uk/img/media/5ef7400158bf88db31347de8e6bb023d5a443f13/0_230_5649_3390/master/5649.jpg?width=1920&quality=85&auto=format&fit=max&s=1ab893b235820659589fa2c786e4d5f6'>Image source</a>
 </div>
 </details>
 
@@ -38,13 +39,18 @@ Questions on looking at this work:
 <div align="center">
 <table><tr>
 <td> <img width="100%" src=".github/lava_ori.jpg"/> </td>
-<td> <img width="100%" src=".github/lava_rolled.jpg"/> </td>
+<td> <img width="100%" src=".github/lava_rolled.jpg"/></td>
 
 <td> <img width="100%" src=".github/urgencies_attn.jpg"/> </td>
-<td> <img width="100%" src=".github/urgencies_roll_attn.jpg"/> </td>
+<td> <img width="100%" src=".github/urgencies_roll_attn.jpg"/>
+</td>
 </tr></table>
-[Image Source](https://www.theguardian.com/world/gallery/2020/jan/13/lava-gushes-from-taal-volcano-in-philippines-in-pictures#img-8)
-[Image Source](https://www.theguardian.com/world/gallery/2020/jan/13/lava-gushes-from-taal-volcano-in-philippines-in-pictures#img-8)
+</div>
+<div align="left">
+<a href='https://www.theguardian.com/world/gallery/2020/jan/13/lava-gushes-from-taal-volcano-in-philippines-in-pictures#img-8'>Image1 source</a>
+</div>
+<div align="right">
+<a href='https://www.theguardian.com/artanddesign/gallery/2020/apr/04/20-photographs-of-the-week#img-12'>Image2 source</a>
 
 </div>
 
@@ -66,7 +72,9 @@ On the corrupted film, the human is not highlit, while artifacts are included th
 <td> <img width="100%"  src=".github/sunset.jpg"/> </td>
 <td> <img width="91%"  src=".github/sunset_crop.jpg"/> </td>
 <br>
-<td> <img width="91%"  src=".github/prix-pictet-2019-shortlist-photo-essay_img-23_attn.jpg"/> </td>
+<td> <img width="100%"  src=".github/prix-pictet-2019-shortlist-photo-essay_img-23_attn.jpg"/>
+<a href='https://www.theguardian.com/artanddesign/2019/jul/05/prix-pictet-2019-shortlist-photo-essay#img-23'>Image source</a>
+</td>
 </tr></table>
 </div>
 </details>
@@ -80,9 +88,13 @@ On the corrupted film, the human is not highlit, while artifacts are included th
 
 <div align="center">
 <table><tr>
-<td> <img width="90%"  src=".github/subjects_nature.jpg"> </td>
-<td> <img width="90%"  src=".github/death-toll-from-floods-in-south-asia-rises-to-more-than-100_img-2_attn.jpg"> </td>
-<td> <img width="100%"  src=".github/bourse_europeene.jpg"/> </td>
+<td> <img width="100%"  src=".github/subjects_nature.jpg"> 
+<a href='https://www.theguardian.com/artanddesign/gallery/2020/jun/06/20-photographs-of-the-week#img-20'>Image source</a></td>
+</td>
+<td> <img width="100%"  src=".github/death-toll-from-floods-in-south-asia-rises-to-more-than-100_img-2_attn.jpg">
+<a href='https://www.theguardian.com/environment/2019/jul/16/death-toll-from-floods-in-south-asia-rises-to-more-than-100#img-2'>Image source</a></td>
+<td> <img width="100%"  src=".github/bourse_europeene.jpg"/>
+<a href='https://www.lapresse.ca/affaires/marches/201907/04/01-5232681-les-bourses-europeennes-sans-direction-en-labsence-de-wall-street.php'>Image source</a></td>
 </tr></table>
 </div>
 
@@ -96,15 +108,21 @@ On the corrupted film, the human is not highlit, while artifacts are included th
      <img width="5%" src=".github/a-lost-elephant-and-hong-kong-protests-wednesdays-best-photos_img-10_attn.jpg">
      <img width="5%" src=".github/trump-roger-stone-sentencing-reaction-criticism_img-1_attn.jpg">
      </summary>
-     
-
 <div align="center">
 <table><tr>
-<td> <img width="90%"  src=".github/do-i-really-care-woody-allen-comes-out-fighting_img-1_attn.jpg"> </td>
-<td> <img width="100%"  src=".github/a-lost-elephant-and-hong-kong-protests-wednesdays-best-photos_img-10_attn.jpg"/> </td>
-<td> <img width="100%"  src=".github/trump-roger-stone-sentencing-reaction-criticism_img-1_attn.jpg"/> </td>
+<td> <img width="100%"  src=".github/do-i-really-care-woody-allen-comes-out-fighting_img-1_attn.jpg">
+<a href='https://www.theguardian.com/film/2020/may/29/do-i-really-care-woody-allen-comes-out-fighting#img-1'>Image source</a>
+</td>
+<td> <img width="100%"  src=".github/a-lost-elephant-and-hong-kong-protests-wednesdays-best-photos_img-10_attn.jpg"/> 
+<a href='https://www.theguardian.com/media/gallery/2019/jun/12/a-lost-elephant-and-hong-kong-protests-wednesdays-best-photos#img-10'>Image source</a>
+</td>
+<td> <img width="100%"  src=".github/trump-roger-stone-sentencing-reaction-criticism_img-1_attn.jpg"/>
+<a href="https://www.theguardian.com/us-news/2020/feb/11/trump-roger-stone-sentencing-reaction-criticism#img-1">Image source</a>
+</td>
 </tr></table>
 </div>
+
+
 
 </details>
 
