@@ -28,6 +28,7 @@ import os.path as osp
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from numpy.core.fromnumeric import resize, size
 import torch
 from torch import nn
 from torchvision import transforms
@@ -43,7 +44,7 @@ norm = lambda x: (x-x.min())/(x.max()-x.min())
 
 def show(x: Union[str, np.ndarray, torch.Tensor], width: int=10) -> None:
     if isinstance(x, str):
-        x = np.asarray(Image.open(str).convert("RGB"))
+        x = np.asarray(Image.open(x).convert("RGB"))
     elif isinstance(x, torch.Tensor):
         x = x.cpu().clone().detach().numpy()
         if x.min() < 0:
@@ -137,7 +138,8 @@ class InferDino:
         _attn = norm(self.attn.mean(axis=0))
         if mode == "concat" or mode == "all":
             attn = touint8(apply_cmap(_attn, cmap=cmap))
-            out =  np.concatenate([self.image, attn], axis=0)
+            axis = np.argmin(self.image.shape[:2])
+            out =  np.concatenate([self.image, attn], axis=axis)
         if mode == "mask" or mode == "all":
             masked  = _attn[..., np.newaxis] * tofloat(self.image)
             masked = touint8(masked)
@@ -153,13 +155,19 @@ class InferDino:
             Image.fromarray(out).save(save)
         return out
 
-    def batch(self, input_folder:str, output_folder: str) -> None:
+    def batch(self, inputs: Union[str, list, tuple], output_folder: str) -> None:
+        """ simple load without multiprocess
+        args
+            input           (str folder | list files)
+            output_folder   (str)
         """
-        """
-        assert osp.isdir(input_folder), f"input folder '{input_folder}' not found"
-        images = get_images(input_folder)
+        if isinstance(inputs, str):
+            assert osp.isdir(inputs), f"input folder '{inputs}' not found"
+            input = get_images(inputs)
+        assert isinstance(input, (list, tuple)), f"expected image list got type(images)"
+
         os.makedirs(output_folder, exist_ok=True)
-        pbar = tqdm(enumerate(images))
+        pbar = tqdm(enumerate(inputs))
         for i, image in pbar:
             name = osp.basename(image)
             pbar.set_description(f"{i} {name}")
@@ -384,3 +392,23 @@ def cat_attn(attn, image, cmap="inferno", save=False, show=True, figsize=None, s
                 plt.subplot(subplot)
         plt.imshow(x)
     
+def compare_models(images, archs=['vit_small', "vit_base"], patch_sizes=[8,16], sizes=[1024,512,256,128],
+                   outf='/media/z/Malatesta/SelfAttention/arch_tests'):
+    try:
+        for i, image in enumerate(images):
+            name = osp.splitext(osp.basename(image))[0]
+            out = osp.join(outf, name)
+            os.makedirs(out, exist_ok=True)
+            for a, arch in enumerate(archs):
+                for p, patch_size in enumerate(patch_sizes):
+                    D = InferDino(arch=arch, patch_size=patch_size)
+                    for s, size in enumerate(sizes):
+                        D.run(image, resize=size)
+                        D.lump(save=osp.join(out, f"{name}_{arch}_{patch_size}_{size}.jpg"))
+    except Exception as e:
+        logging.error("failed on compare models")
+    finally:
+        if D is not None:
+            del D
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
