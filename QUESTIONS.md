@@ -4,18 +4,29 @@ At first glance it appears that Dino finds the self information of the image; of
 
 Questions on looking at this work:
 
-1. What is it learning? -- is it akin to a laplacian pyramid across the dataset unbound by pixel coordinates?
+1. What does it see.<br>
 
-2. Can it be leveraged on downstream tasks and how? -- would it be useful for coordinate regression?
-    The teacher student training approach of this model opens many possibilities. <br>
-    So as to be useful for specific tasks - e.g. segmenting humans -- the project would probably require further training of specific heads.
-    In the current form it is biased towards both subjects in the form of humans and animals and manmade objects. On very busy images the current training needs to be disentangled. 
+2. Can it be leveraged on downstream tasks.  <br>
 
-3. What are its failure points? Are there biases that condition results, is it succeptible to adversaries?
-    This question is important to both design stronger self supervision and to understand if biases will creep on downstream tasks. 
-    From a few tests it appears to be biased to sharp focus, sharper objects, outlier statistcal modes.
+3. a. What is it robust to, b. what are its failure points, c. can it be trained past thee failure points? <br>
 
-## Biases and Characteristics of pretrained Dino
+Most images in this .md are from a large imgae dset of crowds systematically scraped, links to original images provided. All evaluation was done on pretrained models from dino. <br>
+
+## Biases and Characteristics of pretrained Dino / attention visualization
+Images shown here were processed with modification of *video_generation.py*
+```python
+from x_infer_simple import InferDino, show
+D = InferDino() 
+D.run(<imagename>, crop=(y0,y1,x0,x1))
+show(D.lump( save=<filename>))
+# or
+D.batch(input_folder=<>, output_folder=<>)
+```
+or
+```bash
+#!/bin/bash #requires ffmpeg
+python x_video_generation.py --input_path <> --output_path <> --frames <start end> --as_video 1 --crop <ints y0 y1 x0 x1>
+```
 
 <details>
   <summary>  Focus Bias appears strongly in Dino, this is probably inherent to the architecture. <br> While attention heads have less dependence on pixel neighborhood thatn convolutions, weigths still are triggered by distinct pixel steps <br>
@@ -100,8 +111,6 @@ On the corrupted film, the human is not highlit, while artifacts are included th
 
 </details>
 
-
-
 <details>
     <summary>Glasses, tight patterns and unnatural colors appear to attract most attention. <br>
      <img width="5%" src=".github/do-i-really-care-woody-allen-comes-out-fighting_img-1_attn.jpg">
@@ -122,23 +131,55 @@ On the corrupted film, the human is not highlit, while artifacts are included th
 </tr></table>
 </div>
 
-
-
 </details>
 
-
-## Code modifications are simple condensation of existing code
-Images shown here were processed by
+## image similarity
+Modification of *eval_copy_detection.py*
 ```python
-from x_infer_simple import InferDino, show
-D = InferDino() 
-D.run(<imagename>, crop=(y0,y1,x0,x1))
-show(D.lump( save=<filename>))
-# or
-D.batch(input_folder=<>, output_folder=<>)
+from x_get_similar import make_dataset, find_matches
+pt = make_dataset(<path>, resize=(512,512), batch_size=16, patch_size=8, arch="vit_small", savename="vit_small_512_8.pt")
+#... ~ 3 it/s on my system, batchsize can be increased
+find_matches(<image_path | augmented tensor>, pt)
 ```
-or
-```bash
-# requires ffmpeg
-python x_video_generation.py --input_path <str> --output_path <str> --frames <int_start int_end> --as_video 1 --crop <ints y0 y1 x0 x1>
-```
+As mentioned in the paper, Dino works brilliantly on the CopyDays dataset. To validate what it sees and where it fails, I tested briefly with my own augmentation pipeline. The examples shown here are ***generally*** consistent on other data. <br>
+
+* Dino is mostly resilient to **non uniform scaling, hue, saturation** perturbations.
+* Features show strong preference twoards angles and sharp edges in that they fail on **large rotations, blur, and directional blur**.
+<br>
+
+While blur could be thought of as downscaling, and while Dino is robust to scaling in spite of constant size attention support; blur prevents the pretrained features from activating. This supports the finding that Deep Nets learn surface regularities *(todo fill missing citation, I seem to recall is part of Bengio's work.)*
+
+### Question, can training with deeper augmentation?
+Can a more thorough augmentations strategy, as in Noisy Student or stylegan_ADA *(todo fill missing citations)*, result in dino trained to be robust to hi rotations, blurs, and other surface regularities effects? Or a rotational invariant operator is necessary? - TODO: testing
+
+<div align="center">
+<table><tr>
+<td> Pretrained dino is very robust to non uniform scaling, small rotations, hue and saturation changes/<img width="100%"  src=".github/0x702a1828_1800_RSat.png">
+
+<!-- <a href=''>Image source</a></td> -->
+<td> High Rotations(pi/2 - 3pi/2) reveal a strong bias towards angles. <img width="100%"  src=".github/0x702a1828_1800_hiRSat.png">
+<!-- <a href=''>Image source</a></td> -->
+</td>
+</tr></table>
+<table><tr>
+
+<td> Gaussian Blur (3%) of a large image is not the same as scaling. <img width="100%"  src=".github/0x702a1828_1800_Blur.png">
+<!-- <a href=''>Image source</a></td> -->
+</td>
+<td> Directional blur, flummoxes dino (3% 45 deg)<img width="100%"  src=".github/0x702a1828_1800_dBlur.png">
+
+<!-- <a href=''>Image source</a></td> -->
+</td>
+</tr></table>
+</div>
+
+Exeptions to the statements above, some images have very distinctive features, which make them impervious to the aforementioned transformations
+
+<div align="center">
+<table><tr>
+<td> Scaling Saturation<img width="100%"  src=".github/0x937211a5_3488_RSat.png"></td>
+<td> High Rotation<img width="100%"  src=".github/0x937211a5_3488_hiRSat.png"></td>
+<td> Gaussian Blur<img width="100%"  src=".github/0x937211a5_3488_Blur.png"></td>
+<td> Directional Blur<img width="100%"  src=".github/0x937211a5_3488_dBlur.png"></td>
+</tr></table>
+</div>

@@ -28,13 +28,12 @@ import os.path as osp
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
-from numpy.core.fromnumeric import resize, size
 import torch
 from torch import nn
 from torchvision import transforms
 from tqdm import tqdm
 import vision_transformer as vits
-from x_utils import apply_cmap
+from x_utils import apply_cmap, get_images
 
 
 # pylint: disable=no-member
@@ -163,8 +162,8 @@ class InferDino:
         """
         if isinstance(inputs, str):
             assert osp.isdir(inputs), f"input folder '{inputs}' not found"
-            input = get_images(inputs)
-        assert isinstance(input, (list, tuple)), f"expected image list got type(images)"
+            inputs = get_images(inputs)
+        assert isinstance(inputs, (list, tuple)), f"expected image list got {type(inputs)}"
 
         os.makedirs(output_folder, exist_ok=True)
         pbar = tqdm(enumerate(inputs))
@@ -184,11 +183,6 @@ class InferDino:
             show_attn_mean(att, self.image, cmap=cmap)
         else:
             show_attns(att)
-
-def get_images(folder: str) -> list:
-    _get_ext = lambda x: os.path.splitext(x)[-1].lower()
-    _img_ext = (".png", ".jpg", ".jpeg")
-    return sorted([f.path for f in os.scandir(folder) if _get_ext(f.name) in _img_ext])
 
 def load_model(arch: str="vit_small", patch_size: int=8, pretrained_weights: str="", checkpoint_key: str="teacher", **kwargs) -> Any:
     """ simplified model loader from video_generation

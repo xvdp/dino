@@ -1,13 +1,88 @@
-""" applies lut without having to do matplotib.
-ObjDict - handle Dict like class
-from github.com/xvdp/kotools
 """
-from typing import Any
+apply_cmap()    applies lut without having to do matplotib.
+ObjDict()       handle Dict like class    from github.com/xvdp/kotools
+get_images()    scan folder for images that can be opened with PIL
+
+"""
+from typing import Any, Union
+import os
+import os.path as osp
 import numpy as np
+from PIL import Image
 import torch
 
 # pylint: disable=no-member
 norm = lambda x: (x-x.min())/(x.max()-x.min())
+
+def get_files(folder: Union[str, list, tuple]=".", ext: Union[str, list, tuple]=None, recursive: bool=False) -> list:
+    """ conditional file getter
+    Args
+        folder      (str|list ['.'])  folder | list of folders
+        ext         (str|list [None]) file extensions, default, any
+        recursive   (bool[False])
+    """
+    folder = [folder] if isinstance (folder, str) else folder
+    folder = [osp.abspath(osp.expanduser(f)) for f in folder]
+    ext = [ext] if isinstance (ext, str) else ext
+    cond = lambda x, ext: True if ext is None else osp.splitext(x)[-1].lower() in ext
+
+    out = []
+    for fold in folder:
+        if not recursive:
+            out += [f.path for f in os.scandir(fold) if f.is_file() and cond(f.name, ext)]
+        else:
+            for root, _, files in os.walk(fold):
+                out += [osp.join(root, name) for name in files if cond(name, ext)]
+    return sorted(out)
+
+def verify_image(name: str, verbose: bool=False) -> bool:
+    """
+    True:  48 us
+    False: 68 us
+    jpg and png headers with open('rb') is ~3x to 6x faster, but this is practical and tested
+    """
+    try:
+        im = Image.open(name)
+        return True
+    except:
+        if verbose:
+            print(f" Not an Image: {name}")
+        return False
+
+def verify_images(images: list, verbose: bool=False) -> list:
+    return [im for im in images if verify_image(im, verbose)]
+
+def get_images(folder: Union[str, list, tuple]=".", recursive: bool=False,
+               verify: bool=True, verbose: bool=True) -> list:
+    """ conditional image file getter
+    Args
+        folder      (str|list ['.'])  folder | list of folders
+        recursive   (bool [False])
+        verify      (bool [True]), leverages PIL to read the header of each file
+                        may be a bit slower
+                        loading verify_image2() should be faster but is not fully tested
+        verbose     (default [True])
+    """
+    _images = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp']
+    out = get_files(folder=folder, ext=_images, recursive=recursive)
+
+    if verify:
+        out = verify_images(out, verbose)
+
+    if verbose:
+        print(f"get_images()-> {len(out)} found")
+    return out
+
+def rndlist(inputs: Union[list, tuple, np.ndarray, torch.Tensor], num: int=1) -> Any:
+    """ returns random subset from list
+    Args
+        inputs   (iterable)
+        num      (int [1]) number of elements returned
+    """
+    choice = np.random.randint(0, len(inputs), num)
+    if isinstance(inputs, (np.ndarray, torch.Tensor)):
+        return inputs[choice]
+    return [inputs[c] for c in choice]
 
 class ObjDict(dict):
     """

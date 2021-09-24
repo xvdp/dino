@@ -8,7 +8,6 @@ input: image, folders
 try: similarity
 
 """
-from sys import maxsize
 from typing import Any, Union
 import multiprocessing as mp
 import logging
@@ -27,6 +26,7 @@ import utils
 import vision_transformer as vits
 
 from x_hash import hash_folder
+from x_utils import get_images
 
 
 # pylint: disable=no-member
@@ -43,21 +43,6 @@ def verify_image(name):
         return False
 def verify_images(images):
     return [im for im in images if verify_image(im)]
-    
-def get_images(folders: Union[str, list, tuple], recursive: bool=False) -> list:
-    """ return images in folder or folder list
-    """
-    _images = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp']
-
-    folders = [folders] if isinstance(folders, str) else folders
-    out = []
-    for folder in folders:
-        if not recursive:
-            out += [f.path for f in os.scandir(folder) if osp.splitext(f.name)[-1].lower() in _images]
-        else:
-            for root, dirs, files in os.walk(folder):
-                out += [osp.join(root, name) for name in files if osp.splitext(name)[-1].lower() in _images]
-    return sorted(verify_images(out))
 
 def get_logger(level=logging.INFO):
     logging.basicConfig(format="%(message)s", level=level)
@@ -297,23 +282,19 @@ class Match:
         finally:
             self.clean_cuda([features])
 
-    def find_matches(self, fname: str, topk: int=20, **kwargs):
-        self.image = fname
+    def find_matches(self, image: Union[str, torch.Tensor], topk: int=20, **kwargs):
+        self.image = image
         with torch.no_grad():
             if "resize" in kwargs:
                 self.resize = kwargs["resize"]
 
             other = None if "transform" not in kwargs else kwargs["transform"]
-                
-            # print("  resize", self.resize)
-            # print("  maxsize", self.maxsize)
-            # print("  transform", self.transform)
-            image = load_image(fname, self.resize, self.maxsize, other=other).unsqueeze(0)
-            # print("  image shape", image.shape)
-            features = self.model.get_intermediate_layers(image.cuda(), n=1)[0]
-            # print("  features", features.shape)
-            # print("  patch_size", self.patch_size)
-            features = process_features(features, image.shape, self.patch_size)
+
+            if not torch.is_tensor(self.image):
+                self.image = load_image(self.image, self.resize, self.maxsize, other=other).unsqueeze(0)
+
+            features = self.model.get_intermediate_layers(self.image.cuda(), n=1)[0]
+            features = process_features(features, self.image.shape, self.patch_size)
 
             database = nn.functional.normalize(self.features, dim=1, p=2)
             query = nn.functional.normalize(features.cpu().clone().detach(), dim=1, p=2)
@@ -326,25 +307,145 @@ class Match:
             self.matches = distances.tolist()[0], indices.tolist()[0]
             return self.matches
 
-    def show_matches(self, figsize=(20,10), rows=2, cols=5, dbsize=None):
+    @staticmethod
+    def bestfit(num, height, width):
+        """
+        num ~= cols * rows
+        cols ~= rows * height/width
+        num = rows**2 * height/width
+        rows = (num * width/height )**1/2
+        cols = num /rows
+        """
+        cols = (num * height/width )**1/2
+        rows = num/cols
+        # combination of row*col resulting in min wasted area
+        rc, rf = int(np.ceil(rows)), int(rows)
+        cc, cf = int(np.ceil(cols)), int(cols)
+        grid = np.array([[rf,cf],[rc,cf],[rf,cc],[rc,cc]])
+        grid = grid[grid.prod(axis=1) >= num] # discard
+        rows, cols = grid[np.argmin(grid.prod(axis=1))]
 
-        i = 1
-        plt.figure(figsize=figsize)
+        # hm, something is bungled here, lets just double check, 
+        if rows > cols and width > height:
+            _cols = rows
+            rows = cols
+            cols = _cols
+    
+        return int(rows), int(cols)
 
-        plt.subplot(rows, cols, i)
-        plt.title(f"target image '{self.image}'")
-        plt.imshow(Image.open(self.image))
-        
-        for i in range(2, 11):
-            image = self.images[self.matches[1][i-2]]
-            score = np.round(self.matches[0][i-2], 3)
+    def show_matches(self, width=20, cols=5, dbsize=None, compactdb=True, topk=None, axis=None, **kwargs):
+        """
+#data
+folder="/home/z/data/Self/Multitudes"
+results ="/media/z/Malatesta/SelfAttention/matches"
+
+from x_get_similar import find_matches
+
+# not included
+from xenv import *
+import augment.transforms as at
+images = get_images(folder, verbose=False)
+pts = get_files(folder, ext=".pt")
+at.load_shortcuts()
+# get random path, show image, print name
+im = rndlist(images);S(O(im));im[0]
+
+
+# 45deg directional Blur 3%, Resize small side to 800 pix
+find_matches(M(B( Rs(O(im), size=800), x=0.03, y=0.0, angle=-0.75))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_dBlur".join(osp.splitext(osp.basename(im[0])))) )
+# gauss blur 3%
+find_matches(M(B( Rs(O(im), size=800), x=0.03, y=0.03))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_Blur".join(osp.splitext(osp.basename(im[0])))) )
+# Desaturation, rnd minor rotation += pi/10
+find_matches(M(R( Sat(Rs(O(im), size=800)), angle=(-0.1,0.1) ))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_RSat".join(osp.splitext(osp.basename(im[0])))) )
+# Desaturation rnd major rotation > pi/2  < 3pi/2
+find_matches(M(R( Sat(Rs(O(im), size=800)), angle=(0.5,1.7) ))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_hiRSat".join(osp.splitext(osp.basename(im[0])))) )
+
+find_matches(M(R( Sat(Rs(O(im), size=800)), angle=(-0.5,0.5) ))[0], pts[8], compactdb=0, topk=15, save=osp.join(results, osp.basename(im[0])))
+find_matches(M(R( Rs(O(im), size=600), angle=(-0.5,0.5) ))[0], pts[8], compactdb=0, topk=15)
+
+find_matches(img, pts[8], compactdb=0, topk=12)
+find_matches(img, pts[8], compactdb=0, topk=12)
+
+
+        #ims = rndlist(images,20)
+        #o = lambda x: np.asarray(Image.open(x).convert("RGB").resize((256,256)))
+        oims = lambda X: [o(x) for x in X]
+
+
+        """
+        norm = lambda x: (x-x.min())/(x.max()-x.min())
+        num = len(self.matches[0])
+        if topk is not None:
+            num = min(num, topk)
+
+        # test image
+        image = self.image.clone()
+        if image.ndim == 4:
+            image = image[0]
+        image = norm(image.permute(1,2,0).numpy())
+
+        # if dbsize exists, then assume images are square
+        # concatenate all results in rows
+        if compactdb:
+
+            o = lambda x, size, pad=0, col=255: np.pad(np.asarray(Image.open(x).convert("RGB").resize(size)),
+                                                       ((pad, pad), (pad,pad), (0,0)), constant_values=col)
+
+            h, w = image.shape[:2]
+            shape = [h, w]
+            small = np.argmin(shape)
+            shape[small] *= 2.2
+            plt.figure(figsize=(width, width*shape[0]/shape[1]))
+            plt.subplot(2-small, 1+small, 1)
+            plt.imshow(image)
+
+            # find best fit and concatenate
+            plt.subplot(2-small, 1+small, 2)
+            
+            rows, cols = self.bestfit(num, h, w)
+            score = np.round(self.matches[0][0], 3)
+            images = [o(self.images[self.matches[1][0]], dbsize, 2, 0)]
+            images += [o(self.images[self.matches[1][i]], dbsize, 2) for i in range(1, num)]
+            images += [255*np.ones_like(images[0]) for i in range(rows*cols - len(images))]
+            images = np.concatenate([np.concatenate(images[i*cols:(i+1)*cols], axis=1) for i in range(rows)], axis=0)
+
+            plt.title(f"top match: {score}", loc="left")
+            if axis:
+                plt.axis("off")
+            plt.imshow(images)
+
+        else:
+        # just show top 10 matches
+            i = 1
+            cols = min(cols, num+1)
+            rows = int(np.ceil(num/cols))
+            figsize=(width, width*rows/cols)
+
+            plt.figure(figsize=figsize)
             plt.subplot(rows, cols, i)
-            plt.title(f"{score}")
-            img = Image.open(image)
-            if dbsize is not None:
-                img = img.resize(dbsize)
-            plt.imshow(img)
+            plt.title("TARGET")
+            plt.imshow(image)
+
+            for i in range(num):
+                image = self.images[self.matches[1][i]]
+                score = np.round(self.matches[0][i], 3)
+                plt.subplot(rows, cols, i+2)
+                if not i:
+                    plt.title(f"top match: {score}")
+                else:
+                    plt.title(f"{score}")
+                img = Image.open(image)
+                if dbsize is not None:
+                    img = img.resize(dbsize)
+                plt.imshow(img)
         plt.tight_layout()
+        if "save" in kwargs and isinstance(kwargs["save"], str):
+            save = kwargs['save']
+            save, ext = osp.splitext(save)
+            if ext.lower() not in (".jpg", ".pdf"):
+                save += ".jpg"
+            plt.savefig(save)
+
         plt.show()
 
     def clean_cuda(self, tensors, full=False):
@@ -363,10 +464,8 @@ class Match:
 # scripts
 #
 # 1. given a stored pt pass a file find closest matches, show and tell
-def find_matches(image, database="/media/z/Malatesta/SelfAttention/Multitudes/vit_small8_features.pt", fullpath=False, **kwargs):
+def find_matches(image, database, fullpath=False, compactdb=True, **kwargs):
     """
-
-    {"RandomAffine":{"degrees":180, "scale":2.5}}
 
     """
     m = Match(arch="vit_small")
@@ -381,23 +480,22 @@ def find_matches(image, database="/media/z/Malatesta/SelfAttention/Multitudes/vi
 
     # weak - store dbsize inside pickle
     imsz=int(osp.basename(database).split("_")[2])
-    m.show_matches(dbsize=(imsz,imsz))
+    m.show_matches(dbsize=(imsz,imsz), compactdb=compactdb, **kwargs)
     return  m.images[m.matches[1][0]]
 
 # 2. make a pt dataset using minsize
-def make_dataset(folder, recursive=False, resize=None, maxsize=1000, arch='vit_small', patch_size=8, batch_size=1, savename=None, savefolder=None):
+def make_dataset(folder, recursive=False, resize=None, maxsize=1000, arch='vit_small', patch_size=8,
+                 batch_size=1, savename=None, savefolder=None):
     """ vit_small : 10k images # 39MB
-    @ 1024 ~1.5s/it, @ 255 ~7 it/s
+    @ 1024 ~1.5s/it, @ 256 ~7 it/s
     make_dataset(folder, resize=(256,256), batch_size=8, savename="vit_small_256_8.pt")
     make_dataset(folder, resize=(512,512), batch_size=8, savename="vit_small_512_8.pt")
     make_dataset(folder, resize=(1024,1024), batch_size=1, savename="vit_small_1024_8.pt")
-
-
-
     """
     m = None
     try:
-        m = Match(arch=arch, folders=folder, resize=resize, patch_size=patch_size, batch_size=batch_size, recursive=recursive)
+        m = Match(arch=arch, folders=folder, resize=resize, patch_size=patch_size, batch_size=batch_size,
+                  recursive=recursive)
         m.compute_folder_features()
 
         if savename is None:
@@ -418,5 +516,4 @@ def make_dataset(folder, recursive=False, resize=None, maxsize=1000, arch='vit_s
             del m
         torch.cuda.synchronize()
         torch.cuda.empty_cache()
-
-
+    return savename
