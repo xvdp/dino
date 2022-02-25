@@ -1,6 +1,6 @@
 """
 apply_cmap()    applies lut without having to do matplotib.
-ObjDict()       handle Dict like class    from github.com/xvdp/kotools
+ObjDict()       handle Dict like class    from github.com/xvdp/koreto
 get_images()    scan folder for images that can be opened with PIL
 
 """

@@ -335,44 +335,26 @@ class Match:
 
     def show_matches(self, width=20, cols=5, dbsize=None, compactdb=True, topk=None, axis=None, **kwargs):
         """
-#data
-folder="/home/z/data/Self/Multitudes"
-results ="/media/z/Malatesta/SelfAttention/matches"
+        #data
+        folder="/home/z/data/Self/Multitudes"
+        results ="/media/z/Malatesta/SelfAttention/matches"
+  
 
-from x_get_similar import find_matches
+        # Example precomputed
 
-# not included
-from xenv import *
-import augment.transforms as at
-images = get_images(folder, verbose=False)
-pts = get_files(folder, ext=".pt")
-at.load_shortcuts()
-# get random path, show image, print name
-im = rndlist(images);S(O(im));im[0]
-
-
-# 45deg directional Blur 3%, Resize small side to 800 pix
-find_matches(M(B( Rs(O(im), size=800), x=0.03, y=0.0, angle=-0.75))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_dBlur".join(osp.splitext(osp.basename(im[0])))) )
-# gauss blur 3%
-find_matches(M(B( Rs(O(im), size=800), x=0.03, y=0.03))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_Blur".join(osp.splitext(osp.basename(im[0])))) )
-# Desaturation, rnd minor rotation += pi/10
-find_matches(M(R( Sat(Rs(O(im), size=800)), angle=(-0.1,0.1) ))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_RSat".join(osp.splitext(osp.basename(im[0])))) )
-# Desaturation rnd major rotation > pi/2  < 3pi/2
-find_matches(M(R( Sat(Rs(O(im), size=800)), angle=(0.5,1.7) ))[0], pts[6], compactdb=0, topk=15, save=osp.join(results, "_hiRSat".join(osp.splitext(osp.basename(im[0])))) )
-
-find_matches(M(R( Sat(Rs(O(im), size=800)), angle=(-0.5,0.5) ))[0], pts[8], compactdb=0, topk=15, save=osp.join(results, osp.basename(im[0])))
-find_matches(M(R( Rs(O(im), size=600), angle=(-0.5,0.5) ))[0], pts[8], compactdb=0, topk=15)
-
-find_matches(img, pts[8], compactdb=0, topk=12)
-find_matches(img, pts[8], compactdb=0, topk=12)
-
-
-        #ims = rndlist(images,20)
-        #o = lambda x: np.asarray(Image.open(x).convert("RGB").resize((256,256)))
-        oims = lambda X: [o(x) for x in X]
-
-
-        """
+        from x_get_similar import Match
+        from augment.transforms import Open,Show
+        features_file = "/home/z/data/Self/Multitudes/vit_base_128_8.pt"
+        img = "/home/z/work/gits/Diffusion/denoising-diffusion-pytorch/results_multitudes/sample-37000.png"
+        im = Open()(img)
+        M = Match()
+        M.load_features(features_file=features_file)
+        _x = lambda step=0, size=128, pad=2: pad + (size+pad)*step
+        _slice = lambda step=0, size=128, pad=2: slice(_x(step, size, pad), _x(step, size, pad)+ size)
+        matchim = im[:,:,_slice(2),_slice(3)]
+        matches = M.find_matches(matchim)
+        M.show_matches()
+                """
         norm = lambda x: (x-x.min())/(x.max()-x.min())
         num = len(self.matches[0])
         if topk is not None:
@@ -387,6 +369,10 @@ find_matches(img, pts[8], compactdb=0, topk=12)
         # if dbsize exists, then assume images are square
         # concatenate all results in rows
         if compactdb:
+            if dbsize is None:
+                dbsize = self.image.shape[-2:]
+            if isinstance(dbsize, int):
+                dbsize = (dbsize, dbsize)
 
             o = lambda x, size, pad=0, col=255: np.pad(np.asarray(Image.open(x).convert("RGB").resize(size)),
                                                        ((pad, pad), (pad,pad), (0,0)), constant_values=col)
